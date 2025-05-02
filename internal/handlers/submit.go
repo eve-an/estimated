@@ -1,38 +1,56 @@
 package handlers
 
 import (
-	"encoding/json"
-	"io"
+	"log/slog"
 	"net/http"
 
+	"github.com/eve-an/estimated/internal/httpx"
 	"github.com/eve-an/estimated/internal/session"
 )
 
-type requestData struct{}
+type SessionStore interface {
+	Push(vote session.VoteEntry) error
+}
 
-func (app *Application) SubmitHandler(w http.ResponseWriter, r *http.Request) {
-	sessionData := app.getSessionData(r)
-	if sessionData == nil {
-		app.logger.Warn("no session available when submitting")
-		app.json(w, http.StatusBadRequest, map[string]string{"message": "not registered"})
-		return
-	}
+type submitHandler struct {
+	logger *slog.Logger
+	store  SessionStore
+}
 
-	data, err := io.ReadAll(r.Body)
+func (s *submitHandler) Add(w http.ResponseWriter, r *http.Request) {
+	body, err := httpx.ReadRequestBody(r)
 	if err != nil {
-		app.logger.Error("reading request body failed", "err", err.Error())
-		app.json(w, http.StatusInternalServerError, map[string]string{"message": err.Error()})
+		s.logger.Error("reading body failed", "err", err)
+		httpx.WriteJSON(w, http.StatusInternalServerError, httpx.APIResponse{
+			Status: httpx.StatusError,
+			Error:  "failed to read body",
+		})
 		return
 	}
 
-	var votes []session.Voting
-	if err := json.Unmarshal(data, &votes); err != nil {
-		app.logger.Error("decoding voting response failed", "err", err.Error())
-		app.json(w, http.StatusInternalServerError, map[string]string{"message": err.Error()})
+	var votes []session.VoteEntry
+	if err := httpx.ParseJSON(body, &votes); err != nil {
+		s.logger.Warn("invalid request body", "err", err)
+		httpx.WriteJSON(w, http.StatusBadRequest, httpx.APIResponse{
+			Status: httpx.StatusError,
+			Error:  "invalid JSON format",
+		})
 		return
 	}
 
-	sessionData.Push(votes)
+	for _, vote := range votes {
+		if err := s.store.Push(vote); err != nil {
+			s.logger.Error("failed to push vote", "err", err)
+			httpx.WriteJSON(w, http.StatusInternalServerError, httpx.APIResponse{
+				Status: httpx.StatusError,
+				Error:  "failed to store vote",
+			})
+			return
+		}
+	}
 
-	app.json(w, http.StatusOK, map[string]string{"message": string(data)})
+	httpx.WriteJSON(w, http.StatusOK, httpx.APIResponse{
+		Status: httpx.StatusSuccess,
+		Data:   votes,
+	})
 }
