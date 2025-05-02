@@ -1,66 +1,43 @@
 package handlers
 
 import (
-	"encoding/json"
-	"fmt"
 	"log/slog"
 	"net/http"
 
-	"github.com/eve-an/estimated/internal/middleware"
 	"github.com/eve-an/estimated/internal/session"
+	"github.com/go-chi/chi/v5"
 )
 
-type Application struct {
-	logger *slog.Logger
+type Handler interface {
+	Routes() http.Handler
+}
 
+type Application struct {
+	logger   *slog.Logger
 	sessions *session.SessionStore
+
+	submitHandler   Handler
+	registerHandler Handler
 }
 
 func NewApplication(
 	logger *slog.Logger,
 	sessions *session.SessionStore,
+	submitHandler Handler,
+	registerHandler Handler,
 ) *Application {
 	return &Application{
-		logger,
-		sessions,
+		logger:   logger,
+		sessions: sessions,
+
+		submitHandler:   submitHandler,
+		registerHandler: registerHandler,
 	}
 }
 
-func (app *Application) json(w http.ResponseWriter, status int, data any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(data); err != nil {
-		app.logger.Error("failed to write JSON", "error", err)
-	}
-}
-
-func (app *Application) jsonIndent(w http.ResponseWriter, status int, data any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-
-	value, err := json.MarshalIndent(data, "", "  ")
-	if err != nil {
-		app.logger.Error("failed to write JSON", "error", err)
-		return
-	}
-
-	fmt.Fprint(w, string(value))
-}
-
-func (app *Application) getToken(r *http.Request) string {
-	cookie, err := r.Cookie(middleware.ClientTokenName)
-	if err != nil {
-		return ""
-	}
-
-	return cookie.Value
-}
-
-func (app *Application) getSessionData(r *http.Request) *session.SessionData {
-	token := app.getToken(r)
-	if token == "" {
-		return nil
-	}
-
-	return app.sessions.Get(token)
+func (app *Application) RegisterRoutes(r chi.Router) {
+	r.Route("/api/v1", func(r chi.Router) {
+		r.Mount("/submit", app.submitHandler.Routes())
+		r.Mount("/register", app.registerHandler.Routes())
+	})
 }

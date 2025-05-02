@@ -25,3 +25,12 @@ func ParseJSON(body []byte, dst any) error {
 	}
 	return nil
 }
+
+func ReadCookie(r *http.Request, key string) (string, error) {
+	cookie, err := r.Cookie(key)
+	if err != nil || cookie == nil {
+		return "", err
+	}
+
+	return cookie.Value, nil
+}

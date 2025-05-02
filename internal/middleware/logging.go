@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"log/slog"
@@ -10,7 +11,9 @@ import (
 	"github.com/eve-an/estimated/internal/session"
 )
 
-const ClientTokenName = "client_token"
+type contextKey string
+
+const sessionKey contextKey = "session"
 
 type Middleware struct {
 	logger   *slog.Logger
@@ -44,10 +47,10 @@ func (m *Middleware) Logging(next http.Handler) http.Handler {
 
 func (m *Middleware) AddSessionCookie(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cookie, err := r.Cookie(ClientTokenName)
+		cookie, err := r.Cookie(string(sessionKey))
 		if err != nil {
 			cookie = &http.Cookie{
-				Name:     ClientTokenName,
+				Name:     string(sessionKey),
 				Value:    "",
 				Path:     "/",
 				HttpOnly: true,
@@ -64,6 +67,9 @@ func (m *Middleware) AddSessionCookie(next http.Handler) http.Handler {
 		http.SetCookie(w, cookie)
 
 		m.sessions.Create(cookie.Value)
+
+		ctx := context.WithValue(r.Context(), sessionKey, cookie.Value)
+		r = r.WithContext(ctx)
 
 		next.ServeHTTP(w, r)
 	})

@@ -6,6 +6,7 @@ import (
 
 	"github.com/eve-an/estimated/internal/httpx"
 	"github.com/eve-an/estimated/internal/session"
+	"github.com/go-chi/chi/v5"
 )
 
 type SessionStore interface {
@@ -17,7 +18,14 @@ type submitHandler struct {
 	store  SessionStore
 }
 
-func (s *submitHandler) Add(w http.ResponseWriter, r *http.Request) {
+func newSubmitHandler(logger *slog.Logger, store SessionStore) *submitHandler {
+	return &submitHandler{
+		logger: logger,
+		store:  store,
+	}
+}
+
+func (s *submitHandler) HandleAdd(w http.ResponseWriter, r *http.Request) {
 	body, err := httpx.ReadRequestBody(r)
 	if err != nil {
 		s.logger.Error("reading body failed", "err", err)
@@ -53,4 +61,11 @@ func (s *submitHandler) Add(w http.ResponseWriter, r *http.Request) {
 		Status: httpx.StatusSuccess,
 		Data:   votes,
 	})
+}
+
+func (s *submitHandler) Routes() http.Handler {
+	r := chi.NewRouter()
+	r.Post("/add", s.HandleAdd)
+
+	return r
 }
