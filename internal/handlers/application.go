@@ -15,8 +15,6 @@ type Application struct {
 	votesHandler   *votesHandler
 	sessionHandler *sessionHandler
 	eventHandler   *eventHandler
-
-	Middleware *middleware.Middleware
 }
 
 func NewApplication(
@@ -29,7 +27,6 @@ func NewApplication(
 		votesHandler:   votesHandler,
 		sessionHandler: sessionHandler,
 		eventHandler:   eventHandler,
-		Middleware:     middleware,
 	}
 }
 

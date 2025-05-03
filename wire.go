@@ -48,6 +48,7 @@ func provideHTTPServer(config *config.Config) *http.Server {
 func provideMux(
 	app *handlers.Application,
 	mw *internalMiddleware.Middleware,
+	config *config.Config,
 ) http.Handler {
 	r := chi.NewRouter()
 	r.Use(mw.AddSessionCookie)
@@ -55,7 +56,7 @@ func provideMux(
 	r.Use(middleware.RealIP)
 	r.Use(mw.Logging)
 	r.Use(middleware.Recoverer)
-	r.Use(middleware.Timeout(45 * time.Minute))
+	r.Use(middleware.Timeout(time.Duration(config.ServerTimeout)))
 
 	return app.RegisterAPIRoutes(r)
 }

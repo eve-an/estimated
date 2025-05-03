@@ -39,7 +39,7 @@ func InitializeApp() (*httpx.Server, error) {
 	eventHandler := handlers.NewEventHandler(logger, sessionStore, sessionNotifier)
 	middlewareMiddleware := middleware.NewMiddleware(logger, sessionStore)
 	application := handlers.NewApplication(votesHandler, sessionHandler, eventHandler, middlewareMiddleware)
-	handler := provideMux(application, middlewareMiddleware)
+	handler := provideMux(application, middlewareMiddleware, config)
 	httpxServer := httpx.NewServer(server, handler)
 	return httpxServer, nil
 }
@@ -66,7 +66,7 @@ func provideHTTPServer(config2 *config.Config) *http.Server {
 
 func provideMux(
 	app *handlers.Application,
-	mw *middleware.Middleware,
+	mw *middleware.Middleware, config2 *config.Config,
 ) http.Handler {
 	r := chi.NewRouter()
 	r.Use(mw.AddSessionCookie)
@@ -74,7 +74,7 @@ func provideMux(
 	r.Use(middleware2.RealIP)
 	r.Use(mw.Logging)
 	r.Use(middleware2.Recoverer)
-	r.Use(middleware2.Timeout(45 * time.Minute))
+	r.Use(middleware2.Timeout(time.Duration(config2.ServerTimeout)))
 
 	return app.RegisterAPIRoutes(r)
 }
