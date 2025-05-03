@@ -8,12 +8,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/eve-an/estimated/internal/httpx"
 	"github.com/eve-an/estimated/internal/session"
 )
-
-type contextKey string
-
-const sessionKey contextKey = "session"
 
 type Middleware struct {
 	logger   *slog.Logger
@@ -47,11 +44,13 @@ func (m *Middleware) Logging(next http.Handler) http.Handler {
 
 func (m *Middleware) AddSessionCookie(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cookie, err := r.Cookie(string(sessionKey))
+		cookieKey := httpx.ContextKeySession.String()
+
+		cookie, err := r.Cookie(cookieKey)
 		if err != nil {
 			cookie = &http.Cookie{
-				Name:     string(sessionKey),
-				Value:    "",
+				Name:     cookieKey,
+				Value:    generateToken(),
 				Path:     "/",
 				HttpOnly: true,
 				Secure:   false, // Set to true in production (with HTTPS)
@@ -60,15 +59,9 @@ func (m *Middleware) AddSessionCookie(next http.Handler) http.Handler {
 			}
 		}
 
-		if cookie.Value == "" {
-			cookie.Value = generateToken()
-		}
-
 		http.SetCookie(w, cookie)
 
-		m.sessions.Create(cookie.Value)
-
-		ctx := context.WithValue(r.Context(), sessionKey, cookie.Value)
+		ctx := context.WithValue(r.Context(), httpx.ContextKeySession, cookie.Value)
 		r = r.WithContext(ctx)
 
 		next.ServeHTTP(w, r)

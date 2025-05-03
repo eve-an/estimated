@@ -40,8 +40,8 @@ func (app *Application) EventHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		case <-app.sessions.Updater:
 			helper := struct {
-				Name    string           `json:"name"`
-				Votings []session.Voting `json:"points"`
+				Name    string              `json:"name"`
+				Votings []session.VoteEntry `json:"points"`
 			}{
 				Name:    token,
 				Votings: app.sessions.GetAllVotings(),

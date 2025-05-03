@@ -5,23 +5,20 @@ import (
 	"time"
 
 	"github.com/eve-an/estimated/internal/collection"
+	"github.com/eve-an/estimated/internal/db"
+	"github.com/eve-an/estimated/internal/model"
 )
 
 const maxVotingCount = 100
 
-type Voting struct {
-	Value     int       `json:"value"`
-	TimeStamp time.Time `json:"timestamp"`
-}
-
-type SessionData struct {
+type sessionData struct {
 	Token     string
 	CreatedAt time.Time
-	votes     *collection.RingBuffer[Voting]
+	votes     *collection.RingBuffer[model.VoteEntry]
 	updater   chan struct{}
 }
 
-func (s *SessionData) Push(vs []Voting) {
+func (s *sessionData) Push(vs []model.VoteEntry) {
 	if len(vs) > maxVotingCount {
 		vs = vs[len(vs)-maxVotingCount:] // dont save everything because it'll kill our memory
 	}
@@ -30,24 +27,26 @@ func (s *SessionData) Push(vs []Voting) {
 		s.votes.Push(v)
 	}
 
-	s.updater <- struct{}{}
+	s.updater <- struct{}{} // todo: we'll block here when no one reads from updater, is this okay?
 }
 
-func (s *SessionData) GetVotings() []Voting {
+func (s *sessionData) Entries() []model.VoteEntry {
 	return s.votes.GetAll()
 }
 
-func newSessionData(token string, updater chan struct{}) *SessionData {
-	return &SessionData{
+func newSessionData(token string, updater chan struct{}) *sessionData {
+	return &sessionData{
 		Token:     token,
 		CreatedAt: time.Now(),
-		votes:     collection.NewRingBuffer[Voting](maxVotingCount),
+		votes:     collection.NewRingBuffer[model.VoteEntry](maxVotingCount),
 		updater:   updater,
 	}
 }
 
+var _ db.VoteEntryStore = (*SessionStore)(nil)
+
 type SessionStore struct {
-	sessions map[string]*SessionData
+	sessions map[string]*sessionData
 
 	Updater chan struct{}
 
@@ -56,22 +55,28 @@ type SessionStore struct {
 
 func NewSessionStore() *SessionStore {
 	return &SessionStore{
-		sessions: make(map[string]*SessionData),
+		sessions: make(map[string]*sessionData),
 		mu:       sync.RWMutex{},
 		Updater:  make(chan struct{}),
 	}
 }
 
-func (s *SessionStore) Create(token string) {
+func (s *SessionStore) Add(token string, vote model.VoteEntry) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if _, found := s.sessions[token]; !found {
-		s.sessions[token] = newSessionData(token, s.Updater)
+	value, found := s.sessions[token]
+	if !found {
+		value = newSessionData(token, s.Updater)
+		s.sessions[token] = value
 	}
+
+	value.votes.Push(vote)
+
+	return nil
 }
 
-func (s *SessionStore) DeleteAll() int {
+func (s *SessionStore) Clear() (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -80,30 +85,32 @@ func (s *SessionStore) DeleteAll() int {
 		totalDeleted += sess.votes.Clear()
 	}
 
-	return totalDeleted
+	return totalDeleted, nil
 }
 
 func (s *SessionStore) Exists(token string) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
 	_, ok := s.sessions[token]
 	return ok
 }
 
-func (s *SessionStore) Get(token string) *SessionData {
+func (s *SessionStore) Get(token string) ([]model.VoteEntry, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.sessions[token]
+
+	return s.sessions[token].Entries(), nil
 }
 
-func (s *SessionStore) GetAllVotings() []Voting {
+func (s *SessionStore) List() ([]model.VoteEntry, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	votings := make([]Voting, 0, len(s.sessions)*maxVotingCount)
+	votings := make([]model.VoteEntry, 0, len(s.sessions)*maxVotingCount)
 	for _, data := range s.sessions {
-		votings = append(votings, data.GetVotings()...)
+		votings = append(votings, data.Entries()...)
 	}
 
-	return votings
+	return votings, nil
 }

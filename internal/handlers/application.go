@@ -1,10 +1,9 @@
 package handlers
 
 import (
-	"log/slog"
 	"net/http"
 
-	"github.com/eve-an/estimated/internal/session"
+	"github.com/eve-an/estimated/internal/middleware"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -13,31 +12,28 @@ type Handler interface {
 }
 
 type Application struct {
-	logger   *slog.Logger
-	sessions *session.SessionStore
-
-	submitHandler   Handler
-	registerHandler Handler
+	votesHandler   *votesHandler
+	sessionHandler *sessionHandler
+	Middleware     *middleware.Middleware
 }
 
 func NewApplication(
-	logger *slog.Logger,
-	sessions *session.SessionStore,
-	submitHandler Handler,
-	registerHandler Handler,
+	votesHandler *votesHandler,
+	sessionHandler *sessionHandler,
+	middleware *middleware.Middleware,
 ) *Application {
 	return &Application{
-		logger:   logger,
-		sessions: sessions,
-
-		submitHandler:   submitHandler,
-		registerHandler: registerHandler,
+		votesHandler:   votesHandler,
+		sessionHandler: sessionHandler,
+		Middleware:     middleware,
 	}
 }
 
-func (app *Application) RegisterRoutes(r chi.Router) {
+func (app *Application) RegisterAPIRoutes(r chi.Router) http.Handler {
 	r.Route("/api/v1", func(r chi.Router) {
-		r.Mount("/submit", app.submitHandler.Routes())
-		r.Mount("/register", app.registerHandler.Routes())
+		r.Mount("/votes", app.votesHandler.Routes())
+		r.Mount("/register", app.sessionHandler.Routes())
 	})
+
+	return r
 }
