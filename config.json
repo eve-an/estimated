@@ -1,3 +1,4 @@
 {
-  "session_channel_size": 10
+  "session_channel_size": 10,
+  "server_address": "localhost:8080"
 }

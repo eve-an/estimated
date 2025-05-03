@@ -5,14 +5,19 @@ package main
 
 import (
 	"log/slog"
+	"net/http"
 	"os"
+	"time"
 
 	"github.com/eve-an/estimated/internal/config"
 	"github.com/eve-an/estimated/internal/db"
 	"github.com/eve-an/estimated/internal/handlers"
-	"github.com/eve-an/estimated/internal/middleware"
+	"github.com/eve-an/estimated/internal/httpx"
+	internalMiddleware "github.com/eve-an/estimated/internal/middleware"
 	"github.com/eve-an/estimated/internal/notify"
 	"github.com/eve-an/estimated/internal/session"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/wire"
 )
 
@@ -34,18 +39,42 @@ func provideConfig() (*config.Config, error) {
 	return config.LoadConfig("config.json")
 }
 
-func InitializeApp() (*handlers.Application, error) {
+func provideHTTPServer(config *config.Config) *http.Server {
+	return &http.Server{
+		Addr: config.ServerAddress,
+	}
+}
+
+func provideMux(
+	app *handlers.Application,
+	mw *internalMiddleware.Middleware,
+) http.Handler {
+	r := chi.NewRouter()
+	r.Use(mw.AddSessionCookie)
+	r.Use(middleware.RequestID)
+	r.Use(middleware.RealIP)
+	r.Use(mw.Logging)
+	r.Use(middleware.Recoverer)
+	r.Use(middleware.Timeout(45 * time.Minute))
+
+	return app.RegisterAPIRoutes(r)
+}
+
+func InitializeApp() (*httpx.Server, error) {
 	wire.Build(
+		provideHTTPServer,
+		httpx.NewServer,
 		handlers.NewApplication,
 
 		handlers.NewSessionHandler,
 		handlers.NewVotesHandler,
 		handlers.NewEventHandler,
 
+		provideMux,
 		provideConfig,
 		provideLogger,
 
-		middleware.NewMiddleware,
+		internalMiddleware.NewMiddleware,
 
 		newSessionNotifierStoreSet,
 		voteEntryStoreSet,

@@ -10,22 +10,28 @@ import (
 	"github.com/eve-an/estimated/internal/config"
 	"github.com/eve-an/estimated/internal/db"
 	"github.com/eve-an/estimated/internal/handlers"
+	"github.com/eve-an/estimated/internal/httpx"
 	"github.com/eve-an/estimated/internal/middleware"
 	"github.com/eve-an/estimated/internal/notify"
 	"github.com/eve-an/estimated/internal/session"
+	"github.com/go-chi/chi/v5"
+	middleware2 "github.com/go-chi/chi/v5/middleware"
 	"github.com/google/wire"
 	"log/slog"
+	"net/http"
 	"os"
+	"time"
 )
 
 // Injectors from wire.go:
 
-func InitializeApp() (*handlers.Application, error) {
-	logger := provideLogger()
+func InitializeApp() (*httpx.Server, error) {
 	config, err := provideConfig()
 	if err != nil {
 		return nil, err
 	}
+	server := provideHTTPServer(config)
+	logger := provideLogger()
 	sessionNotifier := notify.NewSessionNotifier(config)
 	sessionStore := session.NewSessionStore(sessionNotifier)
 	votesHandler := handlers.NewVotesHandler(logger, sessionStore)
@@ -33,7 +39,9 @@ func InitializeApp() (*handlers.Application, error) {
 	eventHandler := handlers.NewEventHandler(logger, sessionStore, sessionNotifier)
 	middlewareMiddleware := middleware.NewMiddleware(logger, sessionStore)
 	application := handlers.NewApplication(votesHandler, sessionHandler, eventHandler, middlewareMiddleware)
-	return application, nil
+	handler := provideMux(application, middlewareMiddleware)
+	httpxServer := httpx.NewServer(server, handler)
+	return httpxServer, nil
 }
 
 // wire.go:
@@ -48,4 +56,25 @@ func provideLogger() *slog.Logger {
 
 func provideConfig() (*config.Config, error) {
 	return config.LoadConfig("config.json")
+}
+
+func provideHTTPServer(config2 *config.Config) *http.Server {
+	return &http.Server{
+		Addr: config2.ServerAddress,
+	}
+}
+
+func provideMux(
+	app *handlers.Application,
+	mw *middleware.Middleware,
+) http.Handler {
+	r := chi.NewRouter()
+	r.Use(mw.AddSessionCookie)
+	r.Use(middleware2.RequestID)
+	r.Use(middleware2.RealIP)
+	r.Use(mw.Logging)
+	r.Use(middleware2.Recoverer)
+	r.Use(middleware2.Timeout(45 * time.Minute))
+
+	return app.RegisterAPIRoutes(r)
 }
