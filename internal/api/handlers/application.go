@@ -11,13 +11,13 @@ type Handler interface {
 }
 
 type Application struct {
-	votesHandler   *votesHandler
+	votesHandler   *VotesHandler
 	sessionHandler *sessionHandler
 	eventHandler   *eventHandler
 }
 
 func NewApplication(
-	votesHandler *votesHandler,
+	votesHandler *VotesHandler,
 	sessionHandler *sessionHandler,
 	eventHandler *eventHandler,
 ) *Application {

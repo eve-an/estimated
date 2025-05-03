@@ -7,13 +7,13 @@
 package main
 
 import (
+	"github.com/eve-an/estimated/internal/api"
+	"github.com/eve-an/estimated/internal/api/handlers"
+	"github.com/eve-an/estimated/internal/api/middleware"
 	"github.com/eve-an/estimated/internal/config"
-	"github.com/eve-an/estimated/internal/db"
-	"github.com/eve-an/estimated/internal/handlers"
-	"github.com/eve-an/estimated/internal/httpx"
-	"github.com/eve-an/estimated/internal/middleware"
-	"github.com/eve-an/estimated/internal/notify"
-	"github.com/eve-an/estimated/internal/session"
+	"github.com/eve-an/estimated/internal/infra/notify"
+	"github.com/eve-an/estimated/internal/infra/store"
+	"github.com/eve-an/estimated/internal/service"
 	"github.com/go-chi/chi/v5"
 	middleware2 "github.com/go-chi/chi/v5/middleware"
 	"github.com/google/wire"
@@ -25,48 +25,70 @@ import (
 
 // Injectors from wire.go:
 
-func InitializeApp(config2 *config.Config) (*httpx.Server, error) {
+func InitializeApp(config2 *config.Config) (*api.Server, error) {
 	server := provideHTTPServer(config2)
 	logger := provideLogger()
 	sessionNotifier := notify.NewSessionNotifier(config2)
-	sessionStore := session.NewSessionStore(sessionNotifier)
-	votesHandler := handlers.NewVotesHandler(logger, sessionStore)
+	sessionStore := store.NewSessionStore(sessionNotifier)
+	voteService := service.NewVoteService(sessionStore, sessionNotifier, logger)
+	votesHandler := handlers.NewVotesHandler(logger, voteService)
 	sessionHandler := handlers.NewSessionHandler(logger)
-	eventHandler := handlers.NewEventHandler(logger, sessionStore, sessionNotifier)
+	eventService := service.NewEventService(logger, sessionNotifier, voteService)
+	eventHandler := handlers.NewEventHandler(logger, eventService)
 	application := handlers.NewApplication(votesHandler, sessionHandler, eventHandler)
-	middlewareMiddleware := middleware.NewMiddleware(logger, sessionStore)
-	handler := provideMux(application, middlewareMiddleware, config2)
-	httpxServer := httpx.NewServer(server, handler)
-	return httpxServer, nil
+	middlewareMiddleware := middleware.NewMiddleware(logger)
+	handler := provideRouter(application, middlewareMiddleware, config2, logger)
+	apiServer := api.NewServer(server, handler)
+	return apiServer, nil
 }
 
 // wire.go:
 
-var voteEntryStoreSet = wire.NewSet(session.NewSessionStore, wire.Bind(new(db.VoteEntryStore), new(*session.SessionStore)))
+var SingletonSet = wire.NewSet(
+	provideLogger,
+)
 
-var newSessionNotifierStoreSet = wire.NewSet(notify.NewSessionNotifier, wire.Bind(new(notify.Notifier), new(*notify.SessionNotifier)))
+var StoreSet = wire.NewSet(store.NewSessionStore, wire.Bind(new(service.VoteStore), new(*store.SessionStore)))
+
+var HandlerSet = wire.NewSet(handlers.NewVotesHandler, handlers.NewSessionHandler, handlers.NewEventHandler, handlers.NewApplication)
+
+var HTTPSet = wire.NewSet(
+	provideHTTPServer,
+	provideRouter, api.NewServer, middleware.NewMiddleware,
+)
+
+var ServiceSet = wire.NewSet(service.NewVoteService, service.NewEventService)
+
+var NotifierSet = wire.NewSet(notify.NewSessionNotifier, wire.Bind(new(notify.Notifier), new(*notify.SessionNotifier)))
 
 func provideLogger() *slog.Logger {
-	return slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	return slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
 }
 
 func provideHTTPServer(config2 *config.Config) *http.Server {
 	return &http.Server{
-		Addr: config2.ServerAddress,
+		Addr:         config2.ServerAddress,
+		ReadTimeout:  time.Duration(config2.ServerTimeout),
+		WriteTimeout: time.Duration(config2.ServerTimeout),
+		IdleTimeout:  120 * time.Second,
 	}
 }
 
-func provideMux(
+func provideRouter(
 	app *handlers.Application,
 	mw *middleware.Middleware, config2 *config.Config,
+	logger *slog.Logger,
 ) http.Handler {
 	r := chi.NewRouter()
-	r.Use(mw.AddSessionCookie)
+
 	r.Use(middleware2.RequestID)
 	r.Use(middleware2.RealIP)
 	r.Use(mw.Logging)
 	r.Use(middleware2.Recoverer)
-	r.Use(middleware2.Timeout(time.Duration(config2.ServerTimeout)))
+	r.Use(mw.AddSessionCookie)
+	r.Use(middleware2.Timeout(time.Duration(config2.ServerTimeout) * time.Second))
 
 	return app.RegisterAPIRoutes(r)
 }

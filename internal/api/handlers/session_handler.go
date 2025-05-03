@@ -4,7 +4,9 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/eve-an/estimated/internal/httpx"
+	"github.com/eve-an/estimated/internal/api"
+	"github.com/eve-an/estimated/internal/api/dto"
+	"github.com/eve-an/estimated/internal/infra/session"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -19,18 +21,18 @@ func NewSessionHandler(logger *slog.Logger) *sessionHandler {
 }
 
 func (rh *sessionHandler) Create(w http.ResponseWriter, r *http.Request) {
-	key, err := httpx.SessionKeyFromContext(r.Context())
+	key, err := session.FromContext(r.Context())
 	if err != nil {
 		rh.logger.Error("could not found assosiated session", "err", err)
-		httpx.WriteJSON(w, http.StatusInternalServerError, httpx.APIResponse{
-			Status: httpx.StatusError,
+		api.WriteJSON(w, http.StatusInternalServerError, dto.APIResponse{
+			Status: dto.StatusError,
 			Error:  "could not found assosiated session",
 		})
 		return
 	}
 
-	httpx.WriteJSON(w, http.StatusOK, httpx.APIResponse{
-		Status: httpx.StatusSuccess,
+	api.WriteJSON(w, http.StatusOK, dto.APIResponse{
+		Status: dto.StatusSuccess,
 		Data:   key,
 	})
 }

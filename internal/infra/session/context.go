@@ -1,5 +1,5 @@
-//go:generate go-enum --marshal
-package httpx
+//go:generate go-enum
+package session
 
 import (
 	"context"
@@ -11,7 +11,7 @@ type ContextKey string
 
 var ErrSessionNotFound = errors.New("no session was generated and saved in context")
 
-func SessionKeyFromContext(ctx context.Context) (string, error) {
+func FromContext(ctx context.Context) (string, error) {
 	key, found := ctx.Value(ContextKeySession).(string)
 	if !found {
 		return "", ErrSessionNotFound

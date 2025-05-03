@@ -8,19 +8,16 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/eve-an/estimated/internal/httpx"
-	"github.com/eve-an/estimated/internal/session"
+	"github.com/eve-an/estimated/internal/infra/session"
 )
 
 type Middleware struct {
-	logger   *slog.Logger
-	sessions *session.SessionStore
+	logger *slog.Logger
 }
 
-func NewMiddleware(logger *slog.Logger, sessions *session.SessionStore) *Middleware {
+func NewMiddleware(logger *slog.Logger) *Middleware {
 	return &Middleware{
-		logger:   logger,
-		sessions: sessions,
+		logger: logger,
 	}
 }
 
@@ -44,7 +41,7 @@ func (m *Middleware) Logging(next http.Handler) http.Handler {
 
 func (m *Middleware) AddSessionCookie(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cookieKey := httpx.ContextKeySession.String()
+		cookieKey := session.ContextKeySession.String()
 
 		cookie, err := r.Cookie(cookieKey)
 		if err != nil {
@@ -61,7 +58,7 @@ func (m *Middleware) AddSessionCookie(next http.Handler) http.Handler {
 
 		http.SetCookie(w, cookie)
 
-		ctx := context.WithValue(r.Context(), httpx.ContextKeySession, cookie.Value)
+		ctx := context.WithValue(r.Context(), session.ContextKeySession, cookie.Value)
 		r = r.WithContext(ctx)
 
 		next.ServeHTTP(w, r)

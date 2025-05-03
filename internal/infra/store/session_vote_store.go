@@ -1,13 +1,13 @@
-package session
+package store
 
 import (
 	"sync"
 	"time"
 
-	"github.com/eve-an/estimated/internal/collection"
-	"github.com/eve-an/estimated/internal/db"
-	"github.com/eve-an/estimated/internal/model"
-	"github.com/eve-an/estimated/internal/notify"
+	"github.com/eve-an/estimated/internal/domain"
+	"github.com/eve-an/estimated/internal/infra/collection"
+	"github.com/eve-an/estimated/internal/infra/notify"
+	"github.com/eve-an/estimated/internal/service"
 )
 
 const maxVotingCount = 100
@@ -15,10 +15,10 @@ const maxVotingCount = 100
 type sessionData struct {
 	Token     string
 	CreatedAt time.Time
-	votes     *collection.RingBuffer[model.VoteEntry]
+	votes     *collection.RingBuffer[domain.VoteEntry]
 }
 
-func (s *sessionData) Push(vs []model.VoteEntry) {
+func (s *sessionData) Push(vs []domain.VoteEntry) {
 	if len(vs) > maxVotingCount {
 		vs = vs[len(vs)-maxVotingCount:] // dont save everything because it'll kill our memory
 	}
@@ -28,7 +28,7 @@ func (s *sessionData) Push(vs []model.VoteEntry) {
 	}
 }
 
-func (s *sessionData) Entries() []model.VoteEntry {
+func (s *sessionData) Entries() []domain.VoteEntry {
 	return s.votes.GetAll()
 }
 
@@ -36,11 +36,11 @@ func newSessionData(token string) *sessionData {
 	return &sessionData{
 		Token:     token,
 		CreatedAt: time.Now(),
-		votes:     collection.NewRingBuffer[model.VoteEntry](maxVotingCount),
+		votes:     collection.NewRingBuffer[domain.VoteEntry](maxVotingCount),
 	}
 }
 
-var _ db.VoteEntryStore = (*SessionStore)(nil)
+var _ service.VoteStore = (*SessionStore)(nil)
 
 type SessionStore struct {
 	sessions map[string]*sessionData
@@ -57,7 +57,7 @@ func NewSessionStore(sessionNotifier *notify.SessionNotifier) *SessionStore {
 	}
 }
 
-func (s *SessionStore) Add(token string, vote model.VoteEntry) error {
+func (s *SessionStore) Add(token string, vote domain.VoteEntry) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -93,18 +93,18 @@ func (s *SessionStore) Exists(token string) bool {
 	return ok
 }
 
-func (s *SessionStore) Get(token string) ([]model.VoteEntry, error) {
+func (s *SessionStore) Get(token string) ([]domain.VoteEntry, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	return s.sessions[token].Entries(), nil
 }
 
-func (s *SessionStore) List() ([]model.VoteEntry, error) {
+func (s *SessionStore) List() ([]domain.VoteEntry, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	votings := make([]model.VoteEntry, 0, len(s.sessions)*maxVotingCount)
+	votings := make([]domain.VoteEntry, 0, len(s.sessions)*maxVotingCount)
 	for _, data := range s.sessions {
 		votings = append(votings, data.Entries()...)
 	}

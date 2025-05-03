@@ -1,5 +1,5 @@
 //go:generate go-enum --marshal
-package httpx
+package dto
 
 // ENUM(success, error)
 type Status string

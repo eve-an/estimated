@@ -4,7 +4,7 @@
 // Build Date: 2025-03-18T23:42:14Z
 // Built By: goreleaser
 
-package httpx
+package dto
 
 import (
 	"errors"
