@@ -35,10 +35,6 @@ func provideLogger() *slog.Logger {
 	return slog.New(slog.NewJSONHandler(os.Stdout, nil))
 }
 
-func provideConfig() (*config.Config, error) {
-	return config.LoadConfig("config.json")
-}
-
 func provideHTTPServer(config *config.Config) *http.Server {
 	return &http.Server{
 		Addr: config.ServerAddress,
@@ -61,7 +57,7 @@ func provideMux(
 	return app.RegisterAPIRoutes(r)
 }
 
-func InitializeApp() (*httpx.Server, error) {
+func InitializeApp(config *config.Config) (*httpx.Server, error) {
 	wire.Build(
 		provideHTTPServer,
 		httpx.NewServer,
@@ -72,7 +68,6 @@ func InitializeApp() (*httpx.Server, error) {
 		handlers.NewEventHandler,
 
 		provideMux,
-		provideConfig,
 		provideLogger,
 
 		internalMiddleware.NewMiddleware,

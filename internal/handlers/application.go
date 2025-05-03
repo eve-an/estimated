@@ -3,7 +3,6 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/eve-an/estimated/internal/middleware"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -21,7 +20,6 @@ func NewApplication(
 	votesHandler *votesHandler,
 	sessionHandler *sessionHandler,
 	eventHandler *eventHandler,
-	middleware *middleware.Middleware,
 ) *Application {
 	return &Application{
 		votesHandler:   votesHandler,

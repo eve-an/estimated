@@ -20,6 +20,7 @@ WORKDIR /root/
 
 # Copy binary from builder
 COPY --from=builder /app/estimated .
+COPY --from=builder /app/config.json .
 
 # Expose port if needed
 EXPOSE 8080

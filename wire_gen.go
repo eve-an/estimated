@@ -25,21 +25,17 @@ import (
 
 // Injectors from wire.go:
 
-func InitializeApp() (*httpx.Server, error) {
-	config, err := provideConfig()
-	if err != nil {
-		return nil, err
-	}
-	server := provideHTTPServer(config)
+func InitializeApp(config2 *config.Config) (*httpx.Server, error) {
+	server := provideHTTPServer(config2)
 	logger := provideLogger()
-	sessionNotifier := notify.NewSessionNotifier(config)
+	sessionNotifier := notify.NewSessionNotifier(config2)
 	sessionStore := session.NewSessionStore(sessionNotifier)
 	votesHandler := handlers.NewVotesHandler(logger, sessionStore)
 	sessionHandler := handlers.NewSessionHandler(logger)
 	eventHandler := handlers.NewEventHandler(logger, sessionStore, sessionNotifier)
+	application := handlers.NewApplication(votesHandler, sessionHandler, eventHandler)
 	middlewareMiddleware := middleware.NewMiddleware(logger, sessionStore)
-	application := handlers.NewApplication(votesHandler, sessionHandler, eventHandler, middlewareMiddleware)
-	handler := provideMux(application, middlewareMiddleware, config)
+	handler := provideMux(application, middlewareMiddleware, config2)
 	httpxServer := httpx.NewServer(server, handler)
 	return httpxServer, nil
 }
@@ -52,10 +48,6 @@ var newSessionNotifierStoreSet = wire.NewSet(notify.NewSessionNotifier, wire.Bin
 
 func provideLogger() *slog.Logger {
 	return slog.New(slog.NewJSONHandler(os.Stdout, nil))
-}
-
-func provideConfig() (*config.Config, error) {
-	return config.LoadConfig("config.json")
 }
 
 func provideHTTPServer(config2 *config.Config) *http.Server {
