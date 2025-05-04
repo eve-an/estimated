@@ -10,17 +10,17 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-type sessionHandler struct {
+type SessionHandler struct {
 	logger *slog.Logger
 }
 
-func NewSessionHandler(logger *slog.Logger) *sessionHandler {
-	return &sessionHandler{
+func NewSessionHandler(logger *slog.Logger) *SessionHandler {
+	return &SessionHandler{
 		logger: logger,
 	}
 }
 
-func (rh *sessionHandler) Create(w http.ResponseWriter, r *http.Request) {
+func (rh *SessionHandler) Create(w http.ResponseWriter, r *http.Request) {
 	key, err := session.FromContext(r.Context())
 	if err != nil {
 		rh.logger.Error("could not found assosiated session", "err", err)
@@ -37,7 +37,7 @@ func (rh *sessionHandler) Create(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (rh *sessionHandler) Routes() http.Handler {
+func (rh *SessionHandler) Routes() http.Handler {
 	r := chi.NewRouter()
 
 	r.Post("/", rh.Create)

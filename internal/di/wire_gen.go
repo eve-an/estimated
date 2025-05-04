@@ -4,10 +4,9 @@
 //go:build !wireinject
 // +build !wireinject
 
-package main
+package di
 
 import (
-	"github.com/eve-an/estimated/internal/api"
 	"github.com/eve-an/estimated/internal/api/handlers"
 	"github.com/eve-an/estimated/internal/api/middleware"
 	"github.com/eve-an/estimated/internal/config"
@@ -20,14 +19,14 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
 // Injectors from wire.go:
 
-func InitializeApp(config2 *config.Config) (*api.Server, error) {
-	server := provideHTTPServer(config2)
-	logger := provideLogger()
+func InitializeApp(config2 *config.Config) (http.Handler, error) {
+	logger := ProvideLogger()
 	sessionNotifier := notify.NewSessionNotifier(config2)
 	sessionStore := store.NewSessionStore(sessionNotifier)
 	voteService := service.NewVoteService(sessionStore, sessionNotifier, logger)
@@ -35,51 +34,66 @@ func InitializeApp(config2 *config.Config) (*api.Server, error) {
 	sessionHandler := handlers.NewSessionHandler(logger)
 	eventService := service.NewEventService(logger, sessionNotifier, voteService)
 	eventHandler := handlers.NewEventHandler(logger, eventService)
-	application := handlers.NewApplication(votesHandler, sessionHandler, eventHandler)
 	middlewareMiddleware := middleware.NewMiddleware(logger)
-	handler := provideRouter(application, middlewareMiddleware, config2, logger)
-	apiServer := api.NewServer(server, handler)
-	return apiServer, nil
+	handler := ProvideRouter(votesHandler, sessionHandler, eventHandler, middlewareMiddleware, config2)
+	return handler, nil
 }
 
 // wire.go:
 
 var SingletonSet = wire.NewSet(
-	provideLogger,
+	ProvideLogger,
 )
 
 var StoreSet = wire.NewSet(store.NewSessionStore, wire.Bind(new(service.VoteStore), new(*store.SessionStore)))
 
-var HandlerSet = wire.NewSet(handlers.NewVotesHandler, handlers.NewSessionHandler, handlers.NewEventHandler, handlers.NewApplication)
+var HandlerSet = wire.NewSet(handlers.NewVotesHandler, handlers.NewSessionHandler, handlers.NewEventHandler)
 
 var HTTPSet = wire.NewSet(
-	provideHTTPServer,
-	provideRouter, api.NewServer, middleware.NewMiddleware,
+	ProvideRouter, middleware.NewMiddleware,
 )
 
 var ServiceSet = wire.NewSet(service.NewVoteService, service.NewEventService)
 
 var NotifierSet = wire.NewSet(notify.NewSessionNotifier, wire.Bind(new(notify.Notifier), new(*notify.SessionNotifier)))
 
-func provideLogger() *slog.Logger {
-	return slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	}))
-}
+var ApplicationSet = wire.NewSet(
+	SingletonSet,
+	StoreSet,
+	ServiceSet,
+	NotifierSet,
+	HTTPSet,
+	HandlerSet,
+)
 
-func provideHTTPServer(config2 *config.Config) *http.Server {
-	return &http.Server{
-		Addr:         config2.ServerAddress,
-		ReadTimeout:  time.Duration(config2.ServerTimeout),
-		WriteTimeout: time.Duration(config2.ServerTimeout),
-		IdleTimeout:  120 * time.Second,
+func ProvideLogger() *slog.Logger {
+	levelStr := strings.ToUpper(os.Getenv("LOG_LEVEL"))
+
+	debugLevel := slog.LevelInfo
+	switch levelStr {
+	case "DEBUG":
+		debugLevel = slog.LevelDebug
+	case "WARN":
+		debugLevel = slog.LevelWarn
+	case "ERROR":
+		debugLevel = slog.LevelError
+	default:
+		debugLevel = slog.LevelInfo
 	}
+
+	s := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: debugLevel,
+	}))
+	slog.SetDefault(s)
+
+	return s
 }
 
-func provideRouter(
-	app *handlers.Application,
+func ProvideRouter(
+	votesHandler *handlers.VotesHandler,
+	sessionHandler *handlers.SessionHandler,
+	eventHandler *handlers.EventHandler,
 	mw *middleware.Middleware, config2 *config.Config,
-	logger *slog.Logger,
 ) http.Handler {
 	r := chi.NewRouter()
 
@@ -90,5 +104,11 @@ func provideRouter(
 	r.Use(mw.AddSessionCookie)
 	r.Use(middleware2.Timeout(time.Duration(config2.ServerTimeout) * time.Second))
 
-	return app.RegisterAPIRoutes(r)
+	r.Route("/api/v1", func(r chi.Router) {
+		r.Mount("/votes", votesHandler.Routes())
+		r.Mount("/register", sessionHandler.Routes())
+		r.Mount("/events", eventHandler.Routes())
+	})
+
+	return r
 }

@@ -11,7 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-type eventHandler struct {
+type EventHandler struct {
 	logger *slog.Logger
 
 	eventService service.EventService
@@ -20,13 +20,13 @@ type eventHandler struct {
 func NewEventHandler(
 	logger *slog.Logger,
 	eventService service.EventService,
-) *eventHandler {
-	return &eventHandler{
+) *EventHandler {
+	return &EventHandler{
 		logger: logger,
 	}
 }
 
-func (e *eventHandler) setSSEHeader(w http.ResponseWriter) {
+func (e *EventHandler) setSSEHeader(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -35,7 +35,7 @@ func (e *eventHandler) setSSEHeader(w http.ResponseWriter) {
 	w.Header().Set("Access-Control-Allow-Credentials", "true")
 }
 
-func (e *eventHandler) EventHandler(w http.ResponseWriter, r *http.Request) {
+func (e *EventHandler) EventHandler(w http.ResponseWriter, r *http.Request) {
 	e.setSSEHeader(w)
 
 	token, err := session.FromContext(r.Context())
@@ -69,7 +69,7 @@ func (e *eventHandler) EventHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (e *eventHandler) Routes() http.Handler {
+func (e *EventHandler) Routes() http.Handler {
 	r := chi.NewRouter()
 
 	r.Get("/", e.EventHandler)

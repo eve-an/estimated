@@ -42,16 +42,6 @@ func (s *VotesHandler) Add(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	domainVote, err := s.voteMapper.RequestToDomain(&requestDTO)
-	if err != nil {
-		api.WriteJSON(w, http.StatusBadRequest, dto.APIResponse{
-			Status: dto.StatusError,
-			Error:  "invalid vote",
-			Data:   err.Error(),
-		})
-		return
-	}
-
 	key, err := session.FromContext(r.Context())
 	if err != nil {
 		s.logger.Warn("client has no session key", "err", err)
@@ -62,8 +52,23 @@ func (s *VotesHandler) Add(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	domainVote, err := s.voteMapper.RequestToDomain(&requestDTO, key)
+	if err != nil {
+		api.WriteJSON(w, http.StatusBadRequest, dto.APIResponse{
+			Status: dto.StatusError,
+			Error:  "invalid vote",
+			Data:   err.Error(),
+		})
+		return
+	}
+
+	slog.Debug("vote request ",
+		"request", requestDTO,
+		"model", domainVote,
+	)
+
 	if err := s.voteService.AddVotes(r.Context(), key, []domain.VoteEntry{domainVote}); err != nil {
-		s.logger.Error("failed to add vote", "err", err)
+		s.logger.Error("failed to add vote", "err", err, "vote", domainVote)
 		api.WriteJSON(w, http.StatusInternalServerError, dto.APIResponse{
 			Status: dto.StatusError,
 			Error:  "failed to store vote",
@@ -88,9 +93,15 @@ func (s *VotesHandler) GetAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	response := s.voteMapper.DomainToResponse(votes)
+	s.logger.DebugContext(r.Context(), "all vote entries",
+		"entries", votes,
+		"response", response,
+	)
+
 	api.WriteJSON(w, http.StatusOK, dto.APIResponse{
 		Status: dto.StatusSuccess,
-		Data:   s.voteMapper.DomainToResponse(votes),
+		Data:   response,
 	})
 }
 

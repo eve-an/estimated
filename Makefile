@@ -2,6 +2,9 @@ COMPOSE = docker compose -f docker/docker-compose.yml
 
 .PHONY: build up down logs restart
 
+gen:
+	find . -name 'wire.go' -execdir wire gen . \;
+
 build:
 	$(COMPOSE) build
 

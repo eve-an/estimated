@@ -29,7 +29,7 @@ func (m *Middleware) Logging(next http.Handler) http.Handler {
 
 		duration := time.Since(start)
 
-		m.logger.Info("HTTP request",
+		m.logger.Debug("HTTP request",
 			"method", r.Method,
 			"path", r.URL.Path,
 			"duration", duration,

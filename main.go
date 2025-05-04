@@ -1,6 +1,12 @@
 package main
 
-import "github.com/eve-an/estimated/internal/config"
+import (
+	"log"
+	"net/http"
+
+	"github.com/eve-an/estimated/internal/config"
+	"github.com/eve-an/estimated/internal/di"
+)
 
 func main() {
 	config, err := config.LoadConfig("config.json")
@@ -8,12 +14,17 @@ func main() {
 		panic(err)
 	}
 
-	server, err := InitializeApp(config)
+	handler, err := di.InitializeApp(config)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
-	if err := server.Serve(); err != nil {
-		panic(err)
+	srv := &http.Server{
+		Addr:    config.ServerAddress,
+		Handler: handler,
+	}
+
+	if err := srv.ListenAndServe(); err != nil {
+		log.Fatal(err)
 	}
 }
