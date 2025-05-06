@@ -8,6 +8,7 @@ package di
 
 import (
 	"github.com/eve-an/estimated/internal/api/handlers"
+	"github.com/eve-an/estimated/internal/api/mapper"
 	"github.com/eve-an/estimated/internal/api/middleware"
 	"github.com/eve-an/estimated/internal/config"
 	"github.com/eve-an/estimated/internal/infra/notify"
@@ -30,9 +31,11 @@ func InitializeApp(config2 *config.Config) (http.Handler, error) {
 	sessionNotifier := notify.NewSessionNotifier(config2)
 	sessionStore := store.NewSessionStore(sessionNotifier)
 	voteService := service.NewVoteService(sessionStore, sessionNotifier, logger)
-	votesHandler := handlers.NewVotesHandler(logger, voteService)
-	sessionHandler := handlers.NewSessionHandler(logger)
-	eventService := service.NewEventService(logger, sessionNotifier, voteService)
+	voteMapper := mapper.NewVoteMapper(logger)
+	nameGenerator := service.NewNameGenerator()
+	votesHandler := handlers.NewVotesHandler(logger, voteService, voteMapper, nameGenerator)
+	sessionHandler := handlers.NewSessionHandler(logger, nameGenerator)
+	eventService := service.NewEventService(logger, sessionNotifier, voteService, voteMapper)
 	eventHandler := handlers.NewEventHandler(logger, eventService)
 	middlewareMiddleware := middleware.NewMiddleware(logger)
 	handler := ProvideRouter(votesHandler, sessionHandler, eventHandler, middlewareMiddleware, config2)
@@ -53,7 +56,7 @@ var HTTPSet = wire.NewSet(
 	ProvideRouter, middleware.NewMiddleware,
 )
 
-var ServiceSet = wire.NewSet(service.NewVoteService, service.NewEventService)
+var ServiceSet = wire.NewSet(mapper.NewVoteMapper, service.NewNameGenerator, service.NewVoteService, service.NewEventService)
 
 var NotifierSet = wire.NewSet(notify.NewSessionNotifier, wire.Bind(new(notify.Notifier), new(*notify.SessionNotifier)))
 

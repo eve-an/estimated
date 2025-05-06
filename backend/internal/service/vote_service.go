@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 
 	"github.com/eve-an/estimated/internal/domain"
@@ -19,8 +20,11 @@ type VoteStore interface {
 type VoteService interface {
 	AddVotes(ctx context.Context, sessionKey string, votes []domain.VoteEntry) error
 	GetAllVotes(ctx context.Context) ([]domain.VoteEntry, error)
+	GetAllVotesBySession(ctx context.Context) (map[string][]domain.VoteEntry, error)
 	ClearAllVotes(ctx context.Context) (int, error)
 }
+
+var _ VoteService = (*voteService)(nil)
 
 type voteService struct {
 	store    VoteStore
@@ -55,7 +59,7 @@ func (s *voteService) AddVotes(
 
 	for i, vote := range votes {
 		if err := vote.Valid(); err != nil {
-			return errors.New("invalid vote at index " + string(i) + ": " + err.Error())
+			return fmt.Errorf("invalid vote at index %d: %+v", i, err)
 		}
 	}
 
@@ -82,6 +86,20 @@ func (s *voteService) GetAllVotes(_ context.Context) ([]domain.VoteEntry, error)
 		return nil, err
 	}
 	return votes, nil
+}
+
+func (s *voteService) GetAllVotesBySession(ctx context.Context) (map[string][]domain.VoteEntry, error) {
+	votes, err := s.GetAllVotes(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	sessions := make(map[string][]domain.VoteEntry, 8)
+	for _, v := range votes {
+		sessions[v.Session] = append(sessions[v.Session], v)
+	}
+
+	return sessions, nil
 }
 
 func (s *voteService) ClearAllVotes(ctx context.Context) (int, error) {

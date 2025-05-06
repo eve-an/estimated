@@ -17,17 +17,22 @@ import (
 type VotesHandler struct {
 	logger *slog.Logger
 
-	voteService service.VoteService
-	voteMapper  *mapper.VoteMapper
+	voteService   service.VoteService
+	voteMapper    *mapper.VoteMapper
+	nameGenerator service.NameGenerator
 }
 
 func NewVotesHandler(
 	logger *slog.Logger,
 	voteService service.VoteService,
+	voteMapper *mapper.VoteMapper,
+	nameGenerator service.NameGenerator,
 ) *VotesHandler {
 	return &VotesHandler{
-		logger:      logger,
-		voteService: voteService,
+		logger:        logger,
+		voteService:   voteService,
+		voteMapper:    voteMapper,
+		nameGenerator: nameGenerator,
 	}
 }
 
@@ -52,7 +57,17 @@ func (s *VotesHandler) Add(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	domainVote, err := s.voteMapper.RequestToDomain(&requestDTO, key)
+	name, err := s.nameGenerator.NameFor(key)
+	if err != nil {
+		s.logger.Warn("failed to generate name", "err", err, "session_key", key)
+		api.WriteJSON(w, http.StatusInternalServerError, dto.APIResponse{
+			Status: dto.StatusError,
+			Error:  "failed to generate name",
+		})
+		return
+	}
+
+	domainVote, err := s.voteMapper.RequestToDomain(&requestDTO, key, name)
 	if err != nil {
 		api.WriteJSON(w, http.StatusBadRequest, dto.APIResponse{
 			Status: dto.StatusError,

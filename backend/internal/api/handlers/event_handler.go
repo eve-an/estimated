@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -22,7 +24,8 @@ func NewEventHandler(
 	eventService service.EventService,
 ) *EventHandler {
 	return &EventHandler{
-		logger: logger,
+		logger:       logger,
+		eventService: eventService,
 	}
 }
 
@@ -55,10 +58,21 @@ func (e *EventHandler) EventHandler(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 
-		api.WriteJSON(w, http.StatusOK, dto.APIResponse{
+		response := dto.APIResponse{
 			Status: dto.StatusSuccess,
 			Data:   responseDTO,
-		})
+		}
+
+		data, err := json.Marshal(response)
+		if err != nil {
+			e.logger.Error("error while marshalling event response", "err", err, "response_dto", responseDTO)
+			continue
+		}
+
+		if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
+			e.logger.Error("could not write event to client", "err", err, "session_key", token)
+			continue
+		}
 
 		w.(http.Flusher).Flush()
 	}

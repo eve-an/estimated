@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eve-an/estimated/internal/api/handlers"
+	"github.com/eve-an/estimated/internal/api/mapper"
 	"github.com/eve-an/estimated/internal/api/middleware"
 	"github.com/eve-an/estimated/internal/config"
 	"github.com/eve-an/estimated/internal/infra/notify"
@@ -42,6 +43,8 @@ var HTTPSet = wire.NewSet(
 )
 
 var ServiceSet = wire.NewSet(
+	mapper.NewVoteMapper,
+	service.NewNameGenerator,
 	service.NewVoteService,
 	service.NewEventService,
 )

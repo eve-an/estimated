@@ -1,27 +1,30 @@
 package mapper
 
 import (
+	"log/slog"
+
 	"github.com/eve-an/estimated/internal/api/dto"
 	"github.com/eve-an/estimated/internal/domain"
 	"github.com/eve-an/estimated/internal/value"
 	"github.com/google/uuid"
 )
 
-type VoteMapper struct{}
-
-func NewVoteMapper() *VoteMapper {
-	return &VoteMapper{}
+type VoteMapper struct {
+	logger *slog.Logger
 }
 
-func (m *VoteMapper) RequestToDomain(req *dto.VoteRequestDTO, session string) (domain.VoteEntry, error) {
-	entry := domain.VoteEntry{
-		ID:        uuid.New().String(),
-		Session:   session,
-		Value:     value.VoteValue(req.Value),
-		Timestamp: req.TimeStamp,
-	}
+func NewVoteMapper(logger *slog.Logger) *VoteMapper {
+	return &VoteMapper{logger: logger}
+}
 
-	return entry, entry.Valid()
+func (m *VoteMapper) RequestToDomain(req *dto.VoteRequestDTO, session string, name string) (domain.VoteEntry, error) {
+	return domain.NewVoteEntry(
+		uuid.New().String(),
+		session,
+		name,
+		value.VoteValue(req.Value),
+		req.TimeStamp,
+	)
 }
 
 func (m *VoteMapper) DomainToResponse(votes []domain.VoteEntry) []dto.VoteResponseDTO {
