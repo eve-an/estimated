@@ -59,15 +59,15 @@ func NewSessionStore(sessionNotifier *notify.SessionNotifier) *SessionStore {
 
 func (s *SessionStore) Add(token string, vote domain.VoteEntry) error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	value, found := s.sessions[token]
 	if !found {
 		value = newSessionData(token)
 		s.sessions[token] = value
 	}
+	s.mu.Unlock()
 
 	value.votes.Push(vote)
+
 	s.sessionNotifier.Notify()
 
 	return nil
