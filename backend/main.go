@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/eve-an/estimated/internal/config"
@@ -24,6 +25,7 @@ func main() {
 		Handler: handler,
 	}
 
+	slog.Info("starting server", "config", config)
 	if err := srv.ListenAndServe(); err != nil {
 		log.Fatal(err)
 	}

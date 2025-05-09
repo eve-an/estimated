@@ -1,4 +1,4 @@
-import { ServerResponse } from "./base";
+import { API_URL, ServerResponse } from "./base";
 
 export interface Vote {
   value: number;
@@ -6,7 +6,7 @@ export interface Vote {
 };
 
 export async function addVote(vote: Vote) {
-  const response = await fetch("http://localhost:8080/api/v1/votes", {
+  const response = await fetch(`${API_URL}/api/v1/votes`, {
     method: "POST",
     credentials: "include",
     body: JSON.stringify(vote)

@@ -1,5 +1,6 @@
 import { createSignal, onCleanup } from "solid-js";
 import { Vote } from "./vote";
+import { API_URL } from "./base";
 
 export interface Votes {
   votes: Record<string, Vote[]>;
@@ -8,7 +9,7 @@ export interface Votes {
 export const [eventVotes, setEventVotes] = createSignal<Votes>({ "votes": {} });
 
 export function initSSE() {
-  const eventSource = new EventSource("http://localhost:8080/api/v1/events", { withCredentials: true });
+  const eventSource = new EventSource(`${API_URL}/api/v1/events`, { withCredentials: true });
 
   eventSource.onmessage = (event) => {
     try {
@@ -24,7 +25,6 @@ export function initSSE() {
 
   eventSource.onerror = (err) => {
     console.error("EventSource failed:", err);
-    eventSource.close();
   };
 
   onCleanup(() => {

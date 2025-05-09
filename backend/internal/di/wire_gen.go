@@ -17,6 +17,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	middleware2 "github.com/go-chi/chi/v5/middleware"
 	"github.com/google/wire"
+	"github.com/rs/cors"
 	"log/slog"
 	"net/http"
 	"os"
@@ -100,6 +101,14 @@ func ProvideRouter(
 ) http.Handler {
 	r := chi.NewRouter()
 
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE"},
+		AllowedHeaders:   []string{"Content-Type", "Authorization"},
+		AllowCredentials: true,
+	})
+
+	r.Use(c.Handler)
 	r.Use(middleware2.RequestID)
 	r.Use(middleware2.RealIP)
 	r.Use(mw.Logging)

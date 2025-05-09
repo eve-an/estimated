@@ -20,6 +20,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/google/wire"
+	"github.com/rs/cors"
 )
 
 var SingletonSet = wire.NewSet(
@@ -95,6 +96,14 @@ func ProvideRouter(
 ) http.Handler {
 	r := chi.NewRouter()
 
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"}, // Allow frontend containers or localhost
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE"},
+		AllowedHeaders:   []string{"Content-Type", "Authorization"},
+		AllowCredentials: true,
+	})
+
+	r.Use(c.Handler)
 	r.Use(chiMiddleware.RequestID)
 	r.Use(chiMiddleware.RealIP)
 	r.Use(mw.Logging)

@@ -1,5 +1,5 @@
 {
   "session_channel_size": 10,
-  "server_address": "127.0.0.1:8080",
+  "server_address": "0.0.0.0:8080",
   "server_timeout": "1m"
 }
